@@ -1,0 +1,38 @@
+
+
+.uix-tabs-nav
+{
+    position: relative;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.uix-tabs-more
+{
+    position: absolute;
+    right: 0;
+}
+
+.uix-tabs-more-popup
+{
+    position: absolute;
+    right: 0;
+    padding: .2em;
+    margin: 2px 0 0 0;
+    list-style: none;
+    z-index: 6000;
+}
+.uix-tabs-more-popup li
+{
+    cursor: pointer;
+    padding: .2em .4em;
+    white-space: nowrap;
+}
+
+
+.uix-helper-hidden
+{
+    position: absolute;
+    right: inherit;
+    left: -99999px;
+}

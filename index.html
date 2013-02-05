@@ -1,0 +1,43 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>jQuery UI Tabs - Default functionality</title>
+  <link rel="stylesheet" href="http://code.jquery.com/ui/1.10.0/themes/base/jquery-ui.css" />
+  <link rel="stylesheet" href="css/jquery.uix.tabs.css" />
+  <script src="http://code.jquery.com/jquery-1.9.0.min.js"></script>
+  <script src="http://code.jquery.com/ui/1.9.2/jquery-ui.js"></script>
+  <script src="js/jquery.uix.tabs.js"></script>
+  <script src="js/jquery.ui.popup.js"></script>
+  <script src="js/text-generator.js"></script>
+  <style type="text/css">
+  body {
+	font-family: "Trebuchet MS", "Helvetica", "Arial",  "Verdana", "sans-serif";
+	font-size: 62.5%;
+  }
+  </style>
+  <script type="text/javascript">
+  $(function() {
+    for (var i=1; i<=20; i++) {
+        $("#tabs").children(":first")
+            .append( $("<li></li>").append( $("<a></a>").attr("href", "#tab-" + i).text( $.fn.generateText(parseInt(Math.random() * 4) + 2, true) + " (" + i + ")" ) ) )
+            .end()
+            .append( $("<div></div>").attr("id", "tab-" + i).append( $("<p></p>").text( $.fn.generateText(parseInt(Math.random() * 100) + 100) ) ) );
+    }
+
+	$( "#tabs li:even" ).attr("data-tab-options", "closeable");
+	
+    $( "#tabs" ).tabs({ showMore: true, showMoreMaxHeight:150 });
+  });
+  </script>
+</head>
+<body>
+
+<div id="tabs" style="width:800px;">
+  <ul></ul>
+</div>
+
+
+</body>
+</html>
