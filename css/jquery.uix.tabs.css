@@ -3,7 +3,7 @@
 .uix-tabs-nav
 {
     position: relative;
-    overflow: hidden;
+    overflow: visible;
     white-space: nowrap;
 }
 

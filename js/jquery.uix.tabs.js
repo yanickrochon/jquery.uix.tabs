@@ -34,12 +34,45 @@ $.widget("uix.tabs", $.ui.tabs, {
     _create: function() {
         this._super();
 
+        // Take closeable tabs via class attribute from HTML
+		// into account and update option properly.
+		if ( $.isArray( this.options.disabled ) ) {
+			this.options.disabled = $.unique( options.disabled ).sort();
+		}
+    },
+
+    _processTabs: function() {
+        this._super();
+
+		this._setupTabOptions();
+
         if (this.options.showMore) {
             this.tablist.addClass("uix-tabs-nav");
-            this._createTabsMore();
-            this._processTabs();
+
+            if (!this.tabsMore)
+                this._createTabsMore();
+
+            this.tabs.each($.proxy(function(i, tab) {
+				var $tab = $(tab),
+                    icon = $tab.data("tab-icon");
+
+                if (icon) {
+                    var prev = $tab.children().length < 2 ? $tab.children(":first") : $tab.children(":eq(-1)");
+                    $tab.children("a.ui-tabs-anchor").prepend( $("<span role='presentation'></span>")
+                        .addClass("ui-icon ui-icon-" + icon)
+                        .css({'float':"left", 'margin-top':"-2px", 'margin-right':"2px"})
+                    );
+                }
+            }, this));
         }
     },
+
+	_refresh: function() {
+		this._super();
+
+		if (this.options.showMore)
+			this._updateVisibleTabs();
+	},
 
     _createTabsMore: function() {
         this.tabsMore = $("<button></button>").text(this.options.showMoreText)
@@ -65,7 +98,7 @@ $.widget("uix.tabs", $.ui.tabs, {
                 trigger: this.tabsMore,
 		        position: {
 			        my: "right top",
-			        at: "left bottom"
+			        at: "right bottom"
 		        },
                 open: $.proxy(function() {
                     this.tabsMore.addClass("ui-state-focus")
@@ -81,24 +114,94 @@ $.widget("uix.tabs", $.ui.tabs, {
                         });
                 }, this)
             });
+
+        this._on( this.tabsMorePopup, { keydown: "_popupKeydown" } );
     },
-	
+
+    _popupKeydown: function( event ) {
+		if ( this._handlePageNav( event ) ) {
+			return;
+		}
+
+		switch ( event.keyCode ) {
+			case $.ui.keyCode.RIGHT:
+                var tab = this.tabs.filter(":visible:first");
+            	this._activate( tab.index() );
+                tab.focus();
+				return false;
+			case $.ui.keyCode.LEFT:
+                var tab = this.tabs.filter(":visible:last");
+                this._activate( tab.index() );
+                tab.focus();
+				return false;
+			default:
+				return;
+		}
+    },
+
 	_setupTabOptions: function( tab, panel ) {
-		$.each((tab.data("tab-options") || "").split(","), $.proxy(function(i, option) {
-			if ( $.uix.tabs.SetupOptions[option] ) {
-				$.uix.tabs.SetupOptions[option].call(this, tab, panel);
-			}
-		}, this));
+        if (this.options.closeable) {
+            $.each(this.options.closeable, $.proxy(function(i, index) {
+                this._setupCloseable( this.tabs.eq( index ) );
+            }, this));
+        }
+
+        if (this.options.pinnable) {
+            $.each(this.options.pinnable, $.proxy(function(i, index) {
+                this._setupPinnable( this.tabs.eq( index ) );
+            }, this));
+        }
 	},
+
+    _setupCloseable: function( tab ) {
+		if (tab.find(".ui-icon-close[role='presentation']").length) return;
+		tab.append( $("<span class='ui-icon ui-icon-close' role='presentation'></span>")
+            .text("Remove tab")  /* TODO : i18n */
+			.css({ 'float': "left", 'margin': "0.4em 0.2em 0 0", 'cursor': "pointer" })
+			.bind("click", $.proxy(function(evt) {
+				this._getPopupItem(tab).remove();
+				tab.remove();
+				panel.remove();
+				this.refresh();
+
+                evt.stopPropagation();
+                return false;
+			}, this))
+		);
+    },
+
+    _setupPinnable: function( tab ) {
+        if (tab.find(".ui-icon-pin-w[role='presentation'], .ui-icon-pin-s[role='presentation']").length) return;
+        tab.data("tab-pinned", !!tab.data("tab-pinned"));
+        $("<span role='presentation'></span>")
+            .text("Pin")   /* TODO : i18n */
+            .addClass("ui-icon ui-icon-pin-" + (tab.data("tab-pinned") ? "s" : "w"))
+            .attr('unselectable', "on")
+            .css({'user-select':"none", 'float':"left", 'margin':"0.4em 0.2em 0 0", 'cursor':"pointer"})
+            .on('selectstart', false)
+            .bind("click", $.proxy(function(evt) {
+                var pin = $(evt.target)
+                var pinned = !tab.data("tab-pinned");
+                if (pinned)
+                    pin.removeClass("ui-icon-pin-w").addClass("ui-icon-pin-s");
+                else
+                    pin.removeClass("ui-icon-pin-s").addClass("ui-icon-pin-w");
+
+                tab.data("tab-pinned", pinned);
+                evt.stopPropagation();
+                return false;
+			}, this))
+            .insertAfter( tab.children("a.ui-tabs-anchor") );
+		;
+    },
 
     _getPopupItem: function( tab ) {
         if (!tab.data("tab-more-item")) {
-            tab.data("tab-more-item", $("<li></li>").append( $("<a></a>").prop("href", "#").text( tab.text() ) )
+            tab.data("tab-more-item", $("<li></li>").append( $("<a></a>").prop("href", "#").text( tab.find("a.ui-tabs-anchor").text() ) )
                 .bind(NAV_TAB_ACTIVATE, $.proxy(function() {
 					var index = $(tab).index();
-					this._ensureVisible(index, this.active.index() > index);
-					//console.log(this.active.index() + " = " + (this.active.index() < index));
-                    this._activate(index);
+                    this._activate(index, true);
+                    this._updateVisibleTabs();
                     if (this.tabsMorePopup.data("ui-popup").isOpen) {
                         this.tabsMorePopup.popup("close");
                     }
@@ -109,71 +212,35 @@ $.widget("uix.tabs", $.ui.tabs, {
 		return tab.data("tab-more-item")
     },
 
-    _processTabs: function() {
-        this._super();
-
-        if (this.tabsMore) {
-			//this.tabsMorePopup.children().detach();  // TODO: add _refresh method to check for removed tabs
-			
-            this.tabs.each($.proxy(function(i, tab) {
-				var $tab = $(tab);
-				
-                this.tabsMorePopup.append( this._getPopupItem($tab) );
-				
-				this._setupTabOptions($tab, this._getPanelForTab($tab));
-            }, this));
-
-	        this.tablist.height(this.tabs.first().outerHeight());
-
-			if ( this.active.length ) {
-				this._ensureVisible( this.active.index(), true );
-			}
-        }
-    },
-	
-	_refresh: function() {
-		this._super();
-		
-		if (this.tabsMore && this.active.length)
-			this._ensureVisible( this.active.index() );
-	},
-
-    _ensureVisible: function( index, goingForward ) {
+    // TODO : pinned tabs don't have the intended priority.... must know why
+    _updateVisibleTabs: function() {
 		this.tabsOverflow = false;
 
-        var maxWidth = this.tablist.width() - (this.tabsMore ? this.tabsMore.outerWidth() : 0) - 8;
-	
+        var maxWidth = this.tablist.width() - (this.tabsMore ? this.tabsMore.outerWidth() : 0) - 16;
 		var curWidth = 0;
-		this.tabs.each(function(i, tab) { curWidth += $(tab).outerWidth(); })
-		
-		this.tabs.attr("aria-visible", true).show();  // all visible by default
-		this.tabsMorePopup.children("li").attr("aria-visible", false).hide();
-		
-		var _checkTab = $.proxy(function(i, tab) {
-			var tabWidth = $(tab).outerWidth();
-			curWidth -= tabWidth;
-			$(tab).attr("aria-visible", false).hide();
-			this._getPopupItem($(tab)).attr("aria-visible", true).show();
 
-			return curWidth > maxWidth;
-		}, this);
-		
-		// if going forward, start by removing after index
-		var tabsBefore = this.tabs.filter(":lt(" + index + ")").get();
-		var tabsAfter = this.tabs.filter(":gt(" + index + ")").get().reverse();
-		var tabsToCheck = tabsBefore.concat(tabsAfter);
-		
-		if ((curWidth > maxWidth) && goingForward) {
-			this.tabsOverflow = true;
-			$.each(tabsAfter, _checkTab);
-		}
-		if (curWidth > maxWidth) {
-			this.tabsOverflow = true;
-			$.each(tabsToCheck, _checkTab);
-		}
+		this.tabs.attr("aria-visible", true).show();  // all visible by default
+		this.tabsMorePopup.children("li").detach();
+        this.tabs.each(function(i, tab) { curWidth += $(tab).outerWidth(); });
+
+        var selectors = [
+            ":visible:not(.ui-state-active,[data-tab-pinned='true']):last",  // primary
+            ":visible:not(.ui-state-active):last"                            // secondary
+        ];
+        $.each(selectors, $.proxy(function(i, selector) {
+            var tab = this.tabs.filter(selector);
+            while ( curWidth > maxWidth ) {
+                if ( !tab.length || (tab[0] == this.tabs[0]) ) break;
+
+                this.tabsOverflow = true;
+                curWidth -= tab.outerWidth();
+                this.tabsMorePopup.prepend( this._getPopupItem(tab.hide()) );
+                tab = tab.siblings(selector);
+            }
+        }, this));
 
 		if (this.tabsOverflow) {
-			
+
             this.tabsMorePopup.menu("refresh");
             this.tabsMore.show();
 
@@ -187,17 +254,35 @@ $.widget("uix.tabs", $.ui.tabs, {
         }
     },
 
-    _focusNextTab: function( index, goingForward ) {
-        index = this._findNextTab( index, goingForward );
+	_findNextTab: function( index, goingForward ) {
+        if (!this.tabsOverflow)
+            return this._super(index, goingForward);
 
-        var tab = this.tabs.eq( index );
-
-        if (!tab.is(":visible") && this.tabsOverflow) {
-            this._ensureVisible( index, goingForward );
+        for (var found = false, count = this.tabs.length; !found && count > 0; --count) {
+            index = this._super(index, goingForward);
+            if (count-- < 1) {
+                index = -1;
+                found = true;
+            }
+            if (this._findActive(index).is(":visible")) {
+                found = true;
+            } else {
+                index = goingForward ? index + 1 : index - 1;
+            }
         }
-        tab.focus();
 
 		return index;
+	},
+
+    _activate: function( index, ensureVisible ) {
+		var anchor,
+			active = this._findActive( index );
+
+		if ((active.length && active.is(":visible")) || ensureVisible) {
+            this._super(index);
+        } else {
+            this.tabsMorePopup.popup("open").popup("focusPopup");
+        }
 	},
 
     _setupDisabled: function( disabled ) {
@@ -220,24 +305,7 @@ $.widget("uix.tabs", $.ui.tabs, {
         this._super();
     }
 
-
 });
-
-
-$.uix.tabs.SetupOptions = {
-	closeable: function( tab, panel ) {
-		if (tab.find(".ui-icon-close[role=\"presentation\"]").length) return;
-		tab.append( $("<span class='ui-icon ui-icon-close' role='presentation'>Remove Tab</span>") 
-			.css({ 'float': "left", 'margin': "0.4em 0.2em 0 0", 'cursor': "pointer" })
-			.bind("click", $.proxy(function() {
-				this._getPopupItem(tab).remove();
-				tab.remove();
-				panel.remove();
-				this.refresh();
-			}, this))
-		);
-	}
-};
 
 
 })(jQuery);

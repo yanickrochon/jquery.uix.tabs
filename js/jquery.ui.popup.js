@@ -221,10 +221,12 @@ $.widget( "ui.popup", {
 			of: this.options.trigger
 		}, this.options.position );
 
+        var width = this.element.width();
 		this._show( this.element, this.options.show );
 		this.element
 			.attr( "aria-hidden", "false" )
 			.attr( "aria-expanded", "true" )
+            .width(width)
 			.position( position );
 
 		// take trigger out of tab order to allow shift-tab to skip trigger
